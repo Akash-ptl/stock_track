@@ -1,0 +1,26 @@
+AI Prompts Used During Development
+
+
+Prompt 1 (Initial Setup & Architecture):
+
+Create proper splash screen, login screen only with Google Sign-In option using Firebase. JSON file already added. Also check all the code as per today like firebase configuration and all. First create plan and I will confirm.
+
+
+Prompt 2 (Dashboard UI from Mockup):
+
+Dashboard should look like this [attached mockup screenshot]. Add app name with logo, remove refresh button and make it pull to refresh. Also all dropdown background color check, dark background is coming.
+
+
+Prompt 3 (API Integration & Stock Count):
+
+Fetch stock items from API, display stock list. Allow quantity input (cartons + units). Allow saving data locally when offline. Add a manual sync button for sending pending records. Use clean architecture with BLoC pattern.
+
+
+Prompt 4 (Code Audit):
+
+Audit my uploaded project. Give me a prioritized list of: architecture problems, technical debt, security vulnerabilities, performance bottlenecks, and outdated dependencies. For each issue, severity, exact location, exact fix.
+
+
+Prompt 5 (Code Review):
+
+Review this code. Find: bugs, security holes, performance issues, bad naming, and anything that breaks under edge cases. For each issue, what's wrong, why it matters, exact fix. Don't praise what works. Only flag what doesn't.

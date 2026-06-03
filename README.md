@@ -2,6 +2,13 @@
 
 A mobile stock counting app built with Flutter. Staff can log in, select their business/location, and update inventory counts — even offline.
 
+## Download APK
+
+> **[📥 Download Latest APK](https://github.com/Akash-ptl/stock_track/releases/latest)**
+>
+> Go to **Releases** → download `app-release.apk` → install on your Android device.
+> (Enable "Install from unknown sources" if prompted)
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -147,4 +154,15 @@ flutter run
 | Create Count | POST | `/api/businesses/{id}/stock-counts` |
 | Finalize Count | PUT | `/api/businesses/{id}/stock-counts/{id}?status=completed` |
 
+## AI Tools & Workflow
 
+AI was used throughout development for planning, code generation, debugging, and code review. Every AI suggestion was manually verified and tested before committing.
+
+**How AI was used:**
+- Created implementation plans first, reviewed them, then approved before writing code
+- Used AI for code audits to catch security issues, performance bottlenecks, and architecture problems
+- All generated code was tested on a real device before finalizing
+
+**Reference files:**
+- `ai_prompts_used.txt` — Contains the exact prompts used during development
+- `implementation_plan.md` — The initial architecture plan that was reviewed and approved before coding started
