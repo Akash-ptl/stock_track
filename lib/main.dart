@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_better_auth/flutter_better_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'core/app_theme.dart';
 import 'features/auth/auth_bloc/auth_bloc.dart';
 import 'features/auth/auth_repository.dart';
@@ -16,6 +17,10 @@ void main() async {
 
   await FlutterBetterAuth.initialize(
     url: 'https://stock-track-hazel.vercel.app/api/auth',
+  );
+
+  await GoogleSignIn.instance.initialize(
+    serverClientId: '892429331679-e1capv5tj20dhl21kql0pe25dmucecgl.apps.googleusercontent.com',
   );
 
   runApp(const MyApp());
