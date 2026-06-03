@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../app_user.dart';
 import '../auth_repository.dart';
 
 part 'auth_event.dart';
@@ -19,7 +19,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
     try {
-      final currentUser = _authRepository.currentUser;
+      final currentUser = await _authRepository.getCurrentUser();
       if (currentUser != null) {
         // Instant login: check if we have a cached JWT token
         final cachedToken = await _authRepository.getCachedToken();
@@ -46,22 +46,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      final userCredential = await _authRepository.signInWithGoogle();
-      final user = userCredential.user;
-      if (user != null) {
-        final apiToken = await _authRepository.authenticateWithBackend(user);
-        emit(Authenticated(user: user, apiToken: apiToken));
-      } else {
-        emit(const AuthFailure('User data could not be retrieved from Firebase.'));
-      }
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'ERROR_ABORTED_BY_USER') {
+      final user = await _authRepository.signInWithGoogle();
+      final apiToken = await _authRepository.authenticateWithBackend(user);
+      emit(Authenticated(user: user, apiToken: apiToken));
+    } catch (e) {
+      final errorStr = e.toString();
+      if (errorStr.contains('Sign in aborted by user')) {
         emit(Unauthenticated());
       } else {
-        emit(AuthFailure(e.message ?? 'Authentication failed. Please try again.'));
+        emit(AuthFailure('Authentication failed: $errorStr'));
       }
-    } catch (e) {
-      emit(AuthFailure('Backend authentication failed: ${e.toString()}'));
     }
   }
 

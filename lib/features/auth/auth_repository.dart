@@ -1,31 +1,37 @@
-import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../../core/api_constants.dart';
+import 'package:flutter_better_auth/flutter_better_auth.dart';
+import 'app_user.dart';
 
 class AuthRepository {
-  final FirebaseAuth _firebaseAuth;
   final GoogleSignIn _googleSignIn;
   final FlutterSecureStorage _secureStorage;
+  AppUser? _currentUser;
 
   AuthRepository({
-    FirebaseAuth? firebaseAuth,
     GoogleSignIn? googleSignIn,
     FlutterSecureStorage? secureStorage,
-  })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
+  })  : _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
         _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
-  /// Stream of user auth changes
-  Stream<User?> get user => _firebaseAuth.authStateChanges();
+  /// Get current cached user
+  AppUser? get currentUser => _currentUser;
 
-  /// Get current user
-  User? get currentUser => _firebaseAuth.currentUser;
+  /// Retrieve the user profile from cache
+  Future<AppUser?> getCurrentUser() async {
+    if (_currentUser != null) return _currentUser;
+    final email = await _secureStorage.read(key: 'user_email');
+    final uid = await _secureStorage.read(key: 'user_uid');
+    final displayName = await _secureStorage.read(key: 'user_display_name');
+    if (email != null && uid != null) {
+      _currentUser = AppUser(email: email, uid: uid, displayName: displayName);
+      return _currentUser;
+    }
+    return null;
+  }
 
-  Future<UserCredential> signInWithGoogle() async {
+  Future<AppUser> signInWithGoogle() async {
     // Force email selection prompt by signing out first
     try {
       await _googleSignIn.signOut();
@@ -36,103 +42,62 @@ class AuthRepository {
     try {
       googleUser = await _googleSignIn.authenticate();
     } catch (e) {
-      throw FirebaseAuthException(
-        code: 'ERROR_ABORTED_BY_USER',
-        message: 'Sign in aborted by user: $e',
-      );
+      throw Exception('Sign in aborted by user: $e');
     }
 
-    // Obtain the auth details from the request
     final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+    final String? idToken = googleAuth.idToken;
+    if (idToken == null) {
+      throw Exception('Google Sign-in failed: ID Token is null');
+    }
 
-    // Create a new credential
-    final AuthCredential credential = GoogleAuthProvider.credential(
-      idToken: googleAuth.idToken,
+    // Call Better Auth social sign-in via the client
+    final res = await FlutterBetterAuth.client.signIn.social(
+      provider: 'google',
+      idToken: SocialIdTokenBody(token: idToken),
     );
 
-    // Once signed in, return the UserCredential
-    return await _firebaseAuth.signInWithCredential(credential);
-  }
-
-  /// Authenticate with backend: login or register if not exists
-  Future<String> authenticateWithBackend(User firebaseUser) async {
-    final email = firebaseUser.email;
-    final password = firebaseUser.uid;
-    final name = firebaseUser.displayName ?? '';
-
-    if (email == null) {
-      throw Exception('Firebase user email is null. Cannot authenticate with backend.');
+    final data = res.data;
+    if (data == null) {
+      throw Exception(res.error?.message ?? 'Social login failed via Better Auth');
     }
 
-    final loginUrl = Uri.parse(ApiConstants.login);
-    final registerUrl = Uri.parse(ApiConstants.register);
-
-    // 1. Try to login
-    try {
-      final loginResponse = await http.post(
-        loginUrl,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': email,
-          'password': password,
-        }),
-      ).timeout(const Duration(seconds: 10));
-
-      if (loginResponse.statusCode == 200) {
-        final data = json.decode(loginResponse.body);
-        final token = data['access_token'] as String;
-        await _saveTokenToPrefs(token);
-        return token;
-      } else if (loginResponse.statusCode == 404 || loginResponse.statusCode == 401) {
-        // User not registered or invalid credentials, let's register
-        final registerResponse = await http.post(
-          registerUrl,
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode({
-            'email': email,
-            'password': password,
-            'name': name,
-          }),
-        ).timeout(const Duration(seconds: 10));
-
-        if (registerResponse.statusCode == 201 || registerResponse.statusCode == 200) {
-          // Login again after registration
-          final retryLoginResponse = await http.post(
-            loginUrl,
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({
-              'email': email,
-              'password': password,
-            }),
-          ).timeout(const Duration(seconds: 10));
-
-          if (retryLoginResponse.statusCode == 200) {
-            final data = json.decode(retryLoginResponse.body);
-            final token = data['access_token'] as String;
-            await _saveTokenToPrefs(token);
-            return token;
-          } else {
-            throw Exception('Backend login failed after registration: ${retryLoginResponse.body}');
-          }
-        } else {
-          throw Exception('Backend registration failed: ${registerResponse.body}');
-        }
-      } else {
-        throw Exception('Backend login failed with status code ${loginResponse.statusCode}: ${loginResponse.body}');
-      }
-    } catch (e) {
-      // Offline fallback: check if we already have a cached token
-      final cachedToken = await getCachedToken();
-      if (cachedToken != null) {
-        return cachedToken;
-      }
-      rethrow;
+    // Retrieve session details using getSession
+    final sessionRes = await FlutterBetterAuth.client.getSession();
+    final sessionData = sessionRes.data;
+    if (sessionData == null) {
+      throw Exception(sessionRes.error?.message ?? 'Failed to retrieve session details');
     }
+
+    final user = sessionData.user;
+    final sessionToken = sessionData.session.token;
+
+    final AppUser appUser = AppUser(
+      email: user.email,
+      uid: user.id,
+      displayName: user.name,
+    );
+
+    _currentUser = appUser;
+
+    // Cache user profile details in secure storage
+    await _secureStorage.write(key: 'user_email', value: user.email);
+    await _secureStorage.write(key: 'user_uid', value: user.id);
+    await _secureStorage.write(key: 'user_display_name', value: user.name);
+    await _secureStorage.write(key: 'auth_token_key', value: sessionToken);
+
+    return appUser;
   }
 
-  Future<void> _saveTokenToPrefs(String token) async {
-    await _secureStorage.write(key: 'auth_token_key', value: token);
+  /// Authenticate with backend: return the cached Better Auth session token
+  Future<String> authenticateWithBackend(AppUser user) async {
+    final cachedToken = await getCachedToken();
+    if (cachedToken != null) {
+      return cachedToken;
+    }
+    throw Exception('No active session token found');
   }
+
 
   Future<String?> getCachedToken() async {
     return await _secureStorage.read(key: 'auth_token_key');
@@ -156,9 +121,13 @@ class AuthRepository {
   /// Sign out
   Future<void> signOut() async {
     await clearAllCache();
-    await Future.wait([
-      _firebaseAuth.signOut(),
-      _googleSignIn.signOut(),
-    ]);
+    await _secureStorage.delete(key: 'user_email');
+    await _secureStorage.delete(key: 'user_uid');
+    await _secureStorage.delete(key: 'user_display_name');
+    _currentUser = null;
+    try {
+      await FlutterBetterAuth.client.signOut();
+    } catch (_) {}
+    await _googleSignIn.signOut();
   }
 }

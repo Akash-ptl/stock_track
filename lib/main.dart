@@ -1,9 +1,7 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_better_auth/flutter_better_auth.dart';
 import 'core/app_theme.dart';
-import 'core/firebase_options.dart';
 import 'features/auth/auth_bloc/auth_bloc.dart';
 import 'features/auth/auth_repository.dart';
 import 'features/auth/login_page.dart';
@@ -15,14 +13,10 @@ import 'features/stock/stock_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Firebase using options generated from google-services.json
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
 
-  // Initialize GoogleSignIn
-  await GoogleSignIn.instance.initialize();
+  await FlutterBetterAuth.initialize(
+    url: 'https://stock-track-hazel.vercel.app/api/auth',
+  );
 
   runApp(const MyApp());
 }
