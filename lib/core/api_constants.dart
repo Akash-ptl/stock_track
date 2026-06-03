@@ -1,5 +1,8 @@
 class ApiConstants {
-  static const String baseUrl = 'https://stocktrack-mach.onrender.com';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://stocktrack-mach.onrender.com',
+  );
   static const String login = '$baseUrl/api/auth/login';
   static const String register = '$baseUrl/api/auth/register';
   static const String businesses = '$baseUrl/api/businesses';

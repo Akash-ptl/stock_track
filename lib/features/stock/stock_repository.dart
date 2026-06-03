@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 import '../../core/api_constants.dart';
+import '../../core/database/app_database.dart';
 import 'stock_model.dart';
 
 class StockRepository {
@@ -93,38 +96,102 @@ class StockRepository {
     ),
   ];
 
-  String _getCacheKey(String businessId, String locationId) {
-    return 'stock_items_key_${businessId}_$locationId';
+  String _getCacheKey(String userId, String businessId, String locationId) {
+    return 'stock_items_key_${userId}_${businessId}_$locationId';
   }
 
   bool _isDemo(String businessId, String locationId) {
     return businessId == 'biz_pizza_house' && locationId == 'loc_main_wh';
   }
 
+  /// Migrates SharedPreferences cache entries to SQLite DB
+  Future<void> migrateLegacyCache(String userId) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final db = await AppDatabase.database;
+
+    // 1. Migrate businesses
+    final cachedBizJson = prefs.getString('cached_businesses_key');
+    if (cachedBizJson != null) {
+      try {
+        final List<dynamic> decoded = json.decode(cachedBizJson);
+        final batch = db.batch();
+        for (var biz in decoded) {
+          batch.insert('businesses', {
+            'user_uid': userId,
+            'id': biz['id'] as String,
+            'name': biz['name'] as String,
+          }, conflictAlgorithm: ConflictAlgorithm.ignore);
+        }
+        await batch.commit(noResult: true);
+        await prefs.remove('cached_businesses_key');
+      } catch (e) {
+        debugPrint('[StockRepository] migrate businesses error: $e');
+      }
+    }
+
+    // 2. Migrate stock items
+    final keys = prefs.getKeys();
+    for (final key in keys) {
+      if (key.startsWith('stock_items_key_')) {
+        final parts = key.split('_');
+        final cachedData = prefs.getStringList(key);
+        if (cachedData != null && cachedData.isNotEmpty) {
+          try {
+            String businessId = '';
+            String locationId = '';
+            if (parts.length == 5) {
+              businessId = parts[3];
+              locationId = parts[4];
+            } else if (parts.length == 6) {
+              businessId = parts[4];
+              locationId = parts[5];
+            }
+            if (businessId.isNotEmpty && locationId.isNotEmpty) {
+              final batch = db.batch();
+              for (var jsonStr in cachedData) {
+                final item = StockItem.fromJson(jsonStr);
+                batch.insert('stock_items', {
+                  ...item.toMap(),
+                  'user_uid': userId,
+                  'business_id': businessId,
+                  'location_id': locationId,
+                }, conflictAlgorithm: ConflictAlgorithm.replace);
+              }
+              await batch.commit(noResult: true);
+            }
+          } catch (e) {
+            debugPrint('[StockRepository] migrate stock items error: $e');
+          }
+        }
+        await prefs.remove(key);
+      }
+    }
+  }
+
   /// Fetch businesses for the user
   Future<List<Map<String, String>>> fetchBusinesses(String? authToken) async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? token = authToken ?? await _secureStorage.read(key: 'auth_token_key');
+    final String? userId = await _secureStorage.read(key: 'user_uid');
+    final String userUid = userId ?? 'anonymous';
 
+    // Migrate old caches if present
+    if (userId != null) {
+      await migrateLegacyCache(userId);
+    }
+
+    final db = await AppDatabase.database;
     final url = Uri.parse(ApiConstants.businesses);
     final headers = <String, String>{
       'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
     };
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
-    }
 
-    print('[StockRepository] fetchBusinesses: Requesting URL: $url');
-    print('[StockRepository] fetchBusinesses: Headers: $headers');
-    print('[StockRepository] fetchBusinesses: Token length: ${token?.length ?? 0}');
+    debugPrint('[StockRepository] fetchBusinesses: Requesting URL: $url');
 
     try {
       final response = await http.get(url, headers: headers).timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 60),
       );
-
-      print('[StockRepository] fetchBusinesses: Response status code: ${response.statusCode}');
-      print('[StockRepository] fetchBusinesses: Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> body = json.decode(response.body);
@@ -133,18 +200,30 @@ class StockRepository {
           'name': biz['name'] as String,
         }).toList();
 
-        await prefs.setString('cached_businesses_key', json.encode(result));
+        final batch = db.batch();
+        batch.delete('businesses', where: 'user_uid = ?', whereArgs: [userUid]);
+        for (var biz in result) {
+          batch.insert('businesses', {
+            'user_uid': userUid,
+            'id': biz['id'],
+            'name': biz['name'],
+          });
+        }
+        await batch.commit(noResult: true);
         return result;
       } else {
-        throw Exception('Server returned status code ${response.statusCode} for businesses: ${response.body}');
+        throw Exception('Server returned status code ${response.statusCode} for businesses');
       }
     } catch (e) {
-      print('[StockRepository] fetchBusinesses: Error encountered: $e');
-      final cachedBizJson = prefs.getString('cached_businesses_key');
-      if (cachedBizJson != null) {
-        print('[StockRepository] fetchBusinesses: Fallback to cached businesses');
-        final List<dynamic> decoded = json.decode(cachedBizJson);
-        return decoded.map((biz) => {
+      debugPrint('[StockRepository] fetchBusinesses: Error encountered: $e');
+      final List<Map<String, dynamic>> maps = await db.query(
+        'businesses',
+        where: 'user_uid = ?',
+        whereArgs: [userUid],
+      );
+      if (maps.isNotEmpty) {
+        debugPrint('[StockRepository] fetchBusinesses: Fallback to SQLite cache');
+        return maps.map((biz) => {
           'id': biz['id'] as String,
           'name': biz['name'] as String,
         }).toList();
@@ -155,28 +234,23 @@ class StockRepository {
 
   /// Fetch locations for a business
   Future<List<Map<String, String>>> fetchLocations(String businessId, String? authToken) async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? token = authToken ?? await _secureStorage.read(key: 'auth_token_key');
+    final String? userId = await _secureStorage.read(key: 'user_uid');
+    final String userUid = userId ?? 'anonymous';
 
+    final db = await AppDatabase.database;
     final url = Uri.parse(ApiConstants.locations(businessId));
     final headers = <String, String>{
       'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
     };
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
-    }
 
-    print('[StockRepository] fetchLocations: Requesting URL: $url');
-    print('[StockRepository] fetchLocations: Headers: $headers');
-    print('[StockRepository] fetchLocations: Token length: ${token?.length ?? 0}');
+    debugPrint('[StockRepository] fetchLocations: Requesting URL: $url');
 
     try {
       final response = await http.get(url, headers: headers).timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 60),
       );
-
-      print('[StockRepository] fetchLocations: Response status code: ${response.statusCode}');
-      print('[StockRepository] fetchLocations: Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> body = json.decode(response.body);
@@ -185,18 +259,31 @@ class StockRepository {
           'name': loc['name'] as String,
         }).toList();
 
-        await prefs.setString('cached_locations_${businessId}_key', json.encode(result));
+        final batch = db.batch();
+        batch.delete('locations', where: 'user_uid = ? AND business_id = ?', whereArgs: [userUid, businessId]);
+        for (var loc in result) {
+          batch.insert('locations', {
+            'user_uid': userUid,
+            'business_id': businessId,
+            'id': loc['id'],
+            'name': loc['name'],
+          });
+        }
+        await batch.commit(noResult: true);
         return result;
       } else {
-        throw Exception('Server returned status code ${response.statusCode} for locations: ${response.body}');
+        throw Exception('Server returned status code ${response.statusCode} for locations');
       }
     } catch (e) {
-      print('[StockRepository] fetchLocations: Error encountered: $e');
-      final cachedLocsJson = prefs.getString('cached_locations_${businessId}_key');
-      if (cachedLocsJson != null) {
-        print('[StockRepository] fetchLocations: Fallback to cached locations');
-        final List<dynamic> decoded = json.decode(cachedLocsJson);
-        return decoded.map((loc) => {
+      debugPrint('[StockRepository] fetchLocations: Error encountered: $e');
+      final List<Map<String, dynamic>> maps = await db.query(
+        'locations',
+        where: 'user_uid = ? AND business_id = ?',
+        whereArgs: [userUid, businessId],
+      );
+      if (maps.isNotEmpty) {
+        debugPrint('[StockRepository] fetchLocations: Fallback to SQLite cache');
+        return maps.map((loc) => {
           'id': loc['id'] as String,
           'name': loc['name'] as String,
         }).toList();
@@ -205,145 +292,172 @@ class StockRepository {
     }
   }
 
-  /// Load stock items (API fallback to local SharedPreferences cache)
+  /// Load stock items (API fallback to SQLite local database)
   Future<List<StockItem>> fetchStockItems({
     required String businessId,
     required String locationId,
     String? authToken,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
     final String? token = authToken ?? await _secureStorage.read(key: 'auth_token_key');
+    final String? userId = await _secureStorage.read(key: 'user_uid');
+    final String userUid = userId ?? 'anonymous';
     
-    final String cacheKey = _getCacheKey(businessId, locationId);
+    // Migrate old caches if present
+    if (userId != null) {
+      await migrateLegacyCache(userId);
+    }
 
-    // 1. Check if we have cached local data
-    final cachedData = prefs.getStringList(cacheKey);
-    List<StockItem> itemsList = [];
+    final db = await AppDatabase.database;
     
-    if (cachedData != null && cachedData.isNotEmpty) {
-      itemsList = cachedData.map((e) => StockItem.fromJson(e)).toList();
-    } else {
-      if (_isDemo(businessId, locationId)) {
-        // Initialize with mock items matching screenshot for demo/offline fallback business/location
-        itemsList = List.from(_mockItems);
-        await _saveToLocal(prefs, cacheKey, itemsList);
-      } else {
-        // Real user business/location has no local cache. Initialize empty.
-        itemsList = [];
+    // Load local SQLite items
+    final List<Map<String, dynamic>> localMaps = await db.query(
+      'stock_items',
+      where: 'user_uid = ? AND business_id = ? AND location_id = ?',
+      whereArgs: [userUid, businessId, locationId],
+    );
+
+    List<StockItem> itemsList = localMaps.map((e) => StockItem.fromMap(e)).toList();
+
+    if (itemsList.isEmpty && _isDemo(businessId, locationId)) {
+      // Demo fallback initialization
+      final batch = db.batch();
+      for (var item in _mockItems) {
+        batch.insert('stock_items', {
+          ...item.toMap(),
+          'user_uid': userUid,
+          'business_id': businessId,
+          'location_id': locationId,
+        });
       }
+      await batch.commit(noResult: true);
+      itemsList = List.from(_mockItems);
     }
 
     if (_isDemo(businessId, locationId)) {
-      print('[StockRepository] fetchStockItems: Demo mode detected. Returning local mock items immediately.');
+      debugPrint('[StockRepository] fetchStockItems: Demo mode detected. Returning items immediately.');
       return itemsList;
     }
 
-    final url = Uri.parse(
-      ApiConstants.stockItems(businessId, locationId),
-    );
-    
+    final url = Uri.parse(ApiConstants.stockItems(businessId, locationId));
     final headers = <String, String>{
       'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
     };
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
-    }
 
-    print('[StockRepository] fetchStockItems: Requesting URL: $url');
-    print('[StockRepository] fetchStockItems: Headers: $headers');
-    print('[StockRepository] fetchStockItems: Token length: ${token?.length ?? 0}');
+    debugPrint('[StockRepository] fetchStockItems: Requesting URL: $url');
 
-    // 2. Attempt to fetch from Backend API
     try {
       final response = await http.get(url, headers: headers).timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 60),
       );
-
-      print('[StockRepository] fetchStockItems: Response status code: ${response.statusCode}');
-      print('[StockRepository] fetchStockItems: Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> body = json.decode(response.body);
-        
-        // Merge API items with local quantities (preserve offline unsynced values)
-        final apiItems = body.map((jsonItem) {
-          final mappedApiItem = StockItem.fromApiJson(jsonItem);
-          
-          // Check if we have local unsynced quantity for this item
+        final apiItems = body.map((jsonItem) => StockItem.fromApiJson(jsonItem)).toList();
+
+        final batch = db.batch();
+        final mergedItems = <StockItem>[];
+
+        for (var apiItem in apiItems) {
           final localMatch = itemsList.firstWhere(
-            (local) => local.id == mappedApiItem.id || local.sku == mappedApiItem.sku,
-            orElse: () => mappedApiItem,
+            (local) => local.id == apiItem.id || local.sku == apiItem.sku,
+            orElse: () => apiItem,
           );
 
-          if (!localMatch.isSynced) {
-            // Keep local quantity and unsynced status
-            return localMatch.copyWith(
-              name: mappedApiItem.name,
-              sku: mappedApiItem.sku,
-              unit: mappedApiItem.unit,
-              packSizeMultiplier: mappedApiItem.packSizeMultiplier,
-              parentUnit: mappedApiItem.parentUnit,
-              imageUrl: mappedApiItem.imageUrl,
-            );
-          } else {
-            // Take API item
-            return mappedApiItem;
-          }
-        }).toList();
+          final finalItem = !localMatch.isSynced
+              ? localMatch.copyWith(
+                  name: apiItem.name,
+                  sku: apiItem.sku,
+                  unit: apiItem.unit,
+                  packSizeMultiplier: apiItem.packSizeMultiplier,
+                  parentUnit: apiItem.parentUnit,
+                  imageUrl: apiItem.imageUrl,
+                )
+              : apiItem;
 
-        // Always overwrite itemsList (even if empty, showing real server state)
-        itemsList = apiItems;
-        await _saveToLocal(prefs, cacheKey, itemsList);
+          mergedItems.add(finalItem);
+
+          batch.insert(
+            'stock_items',
+            {
+              ...finalItem.toMap(),
+              'user_uid': userUid,
+              'business_id': businessId,
+              'location_id': locationId,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await batch.commit(noResult: true);
+        return mergedItems;
       } else {
-        throw Exception('Server returned status code ${response.statusCode}: ${response.body}');
+        throw Exception('Server returned status code ${response.statusCode}');
       }
     } catch (e) {
-      print('[StockRepository] fetchStockItems: Error encountered: $e');
-      // If we have cached data, fallback to it silently on any network or server error
-      if (cachedData != null && cachedData.isNotEmpty) {
-        print('[StockRepository] fetchStockItems: Fallback to cached stock items');
+      debugPrint('[StockRepository] fetchStockItems: Error encountered: $e');
+      if (itemsList.isNotEmpty) {
+        debugPrint('[StockRepository] fetchStockItems: Fallback to SQLite local cache');
         return itemsList;
       }
       rethrow;
     }
-
-    return itemsList;
   }
 
-  /// Save stock quantity locally
+  /// Save stock quantity locally in SQLite
   Future<List<StockItem>> saveLocalQuantity({
     required String itemId,
     required double quantity,
     required String businessId,
     required String locationId,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final String cacheKey = _getCacheKey(businessId, locationId);
-    final cachedData = prefs.getStringList(cacheKey);
-    
-    if (cachedData == null) return [];
+    final String? userId = await _secureStorage.read(key: 'user_uid');
+    final String userUid = userId ?? 'anonymous';
 
-    final items = cachedData.map((e) => StockItem.fromJson(e)).toList();
+    final db = await AppDatabase.database;
     
-    final updatedItems = items.map((item) {
+    final List<Map<String, dynamic>> maps = await db.query(
+      'stock_items',
+      where: 'user_uid = ? AND business_id = ? AND location_id = ?',
+      whereArgs: [userUid, businessId, locationId],
+    );
+
+    final items = maps.map((e) => StockItem.fromMap(e)).toList();
+    final updatedItems = <StockItem>[];
+    final batch = db.batch();
+
+    for (var item in items) {
       if (item.id == itemId) {
-        final cartons = quantity ~/ item.packSizeMultiplier;
-        final pieces = quantity % item.packSizeMultiplier;
-        return item.copyWith(
+        final multiplier = item.packSizeMultiplier > 0 ? item.packSizeMultiplier : 1;
+        final cartons = quantity ~/ multiplier;
+        final pieces = quantity % multiplier;
+        final updated = item.copyWith(
           quantity: quantity,
           cartons: cartons.toDouble(),
           pieces: pieces.toDouble(),
-          isSynced: false, // Mark unsynced
+          isSynced: false,
         );
-      }
-      return item;
-    }).toList();
+        updatedItems.add(updated);
 
-    await _saveToLocal(prefs, cacheKey, updatedItems);
+        batch.update(
+          'stock_items',
+          {
+            'quantity': quantity,
+            'cartons': cartons.toDouble(),
+            'pieces': pieces.toDouble(),
+            'isSynced': 0,
+          },
+          where: 'user_uid = ? AND business_id = ? AND location_id = ? AND id = ?',
+          whereArgs: [userUid, businessId, locationId, itemId],
+        );
+      } else {
+        updatedItems.add(item);
+      }
+    }
+    await batch.commit(noResult: true);
     return updatedItems;
   }
 
-  /// Save detailed stock quantity from update screen locally
+  /// Save detailed stock quantity in SQLite
   Future<List<StockItem>> saveDetailedLocalCount({
     required String itemId,
     required double cartons,
@@ -355,18 +469,25 @@ class StockRepository {
     required String businessId,
     required String locationId,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final String cacheKey = _getCacheKey(businessId, locationId);
-    final cachedData = prefs.getStringList(cacheKey);
-    
-    if (cachedData == null) return [];
+    final String? userId = await _secureStorage.read(key: 'user_uid');
+    final String userUid = userId ?? 'anonymous';
 
-    final items = cachedData.map((e) => StockItem.fromJson(e)).toList();
+    final db = await AppDatabase.database;
     
-    final updatedItems = items.map((item) {
+    final List<Map<String, dynamic>> maps = await db.query(
+      'stock_items',
+      where: 'user_uid = ? AND business_id = ? AND location_id = ?',
+      whereArgs: [userUid, businessId, locationId],
+    );
+
+    final items = maps.map((e) => StockItem.fromMap(e)).toList();
+    final updatedItems = <StockItem>[];
+    final batch = db.batch();
+
+    for (var item in items) {
       if (item.id == itemId) {
         final totalQty = (cartons * item.packSizeMultiplier) + pieces;
-        return item.copyWith(
+        final updated = item.copyWith(
           quantity: totalQty,
           cartons: cartons,
           pieces: pieces,
@@ -376,32 +497,54 @@ class StockRepository {
           countedBy: countedBy,
           isSynced: false,
         );
-      }
-      return item;
-    }).toList();
+        updatedItems.add(updated);
 
-    await _saveToLocal(prefs, cacheKey, updatedItems);
+        batch.update(
+          'stock_items',
+          {
+            'quantity': totalQty,
+            'cartons': cartons,
+            'pieces': pieces,
+            'notes': notes,
+            'countType': countType,
+            'countDate': countDate,
+            'countedBy': countedBy,
+            'isSynced': 0,
+          },
+          where: 'user_uid = ? AND business_id = ? AND location_id = ? AND id = ?',
+          whereArgs: [userUid, businessId, locationId, itemId],
+        );
+      } else {
+        updatedItems.add(item);
+      }
+    }
+    await batch.commit(noResult: true);
     return updatedItems;
   }
 
-  /// Push locally changed quantities to API
+  /// Push locally changed quantities to API (Idempotent call)
   Future<List<StockItem>> syncPendingRecords({
     required String businessId,
     required String locationId,
     String? authToken,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
     final String? token = authToken ?? await _secureStorage.read(key: 'auth_token_key');
-    
-    final String cacheKey = _getCacheKey(businessId, locationId);
-    final cachedData = prefs.getStringList(cacheKey);
-    if (cachedData == null) return [];
+    final String? userId = await _secureStorage.read(key: 'user_uid');
+    final String userUid = userId ?? 'anonymous';
 
-    final items = cachedData.map((e) => StockItem.fromJson(e)).toList();
+    final db = await AppDatabase.database;
+    
+    final List<Map<String, dynamic>> maps = await db.query(
+      'stock_items',
+      where: 'user_uid = ? AND business_id = ? AND location_id = ?',
+      whereArgs: [userUid, businessId, locationId],
+    );
+
+    final items = maps.map((e) => StockItem.fromMap(e)).toList();
     final unsyncedItems = items.where((element) => !element.isSynced).toList();
 
     if (_isDemo(businessId, locationId)) {
-      print('[StockRepository] syncPendingRecords: Demo mode detected. Mocking sync locally.');
+      debugPrint('[StockRepository] syncPendingRecords: Demo mode detected. Mocking sync.');
       final syncedItems = items.map((item) {
         if (!item.isSynced) {
           return item.copyWith(isSynced: true);
@@ -409,18 +552,38 @@ class StockRepository {
         return item;
       }).toList();
 
-      await _saveToLocal(prefs, cacheKey, syncedItems);
+      final batch = db.batch();
+      batch.update(
+        'stock_items',
+        {'isSynced': 1},
+        where: 'user_uid = ? AND business_id = ? AND location_id = ? AND isSynced = 0',
+        whereArgs: [userUid, businessId, locationId],
+      );
+      await batch.commit(noResult: true);
       return syncedItems;
     }
 
     if (unsyncedItems.isEmpty) {
-      print('[StockRepository] syncPendingRecords: No unsynced records found.');
-      return items; // Nothing to sync
+      debugPrint('[StockRepository] syncPendingRecords: No unsynced records found.');
+      return items;
     }
 
-    final String countDate = DateTime.now().toIso8601String().split('T')[0];
+    // Align Date parsing: DD/MM/YYYY to YYYY-MM-DD
+    final itemWithDate = unsyncedItems.firstWhere(
+      (e) => e.countDate.isNotEmpty,
+      orElse: () => StockItem(id: '', name: '', sku: '', unit: '', quantity: 0, imageUrl: ''),
+    );
+    String countDate = itemWithDate.countDate;
+    if (countDate.contains('/')) {
+      final parts = countDate.split('/');
+      if (parts.length == 3) {
+        countDate = "${parts[2]}-${parts[1]}-${parts[0]}";
+      }
+    }
+    if (countDate.isEmpty) {
+      countDate = DateTime.now().toIso8601String().split('T')[0];
+    }
     
-    // Find the countedBy name from the unsynced items or use a default
     final countedByName = unsyncedItems
         .firstWhere((e) => e.countedBy.isNotEmpty, orElse: () => StockItem(id: '', name: '', sku: '', unit: '', quantity: 0, imageUrl: ''))
         .countedBy;
@@ -445,30 +608,27 @@ class StockRepository {
       'items': itemsPayload,
     };
 
+    // Generate unique Idempotency-Key
+    final String idempotencyKey = '${DateTime.now().millisecondsSinceEpoch}_$userUid';
+
     final headers = <String, String>{
       'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey,
+      if (token != null) 'Authorization': 'Bearer $token',
     };
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
-    }
 
     final postUrl = Uri.parse(
       ApiConstants.stockCounts(businessId),
     );
 
-    print('[StockRepository] syncPendingRecords: POST URL: $postUrl');
-    print('[StockRepository] syncPendingRecords: Headers: $headers');
-    print('[StockRepository] syncPendingRecords: Payload: $payload');
+    debugPrint('[StockRepository] syncPendingRecords: POST URL: $postUrl (Key: $idempotencyKey)');
 
     // 1. POST to create count session
     final postResponse = await http.post(
       postUrl,
       headers: headers,
       body: json.encode(payload),
-    ).timeout(const Duration(seconds: 10));
-
-    print('[StockRepository] syncPendingRecords: POST Response status code: ${postResponse.statusCode}');
-    print('[StockRepository] syncPendingRecords: POST Response body: ${postResponse.body}');
+    ).timeout(const Duration(seconds: 60));
 
     if (postResponse.statusCode == 200 || postResponse.statusCode == 201) {
       final sessionData = json.decode(postResponse.body);
@@ -479,19 +639,15 @@ class StockRepository {
         ApiConstants.finalizeCount(businessId, sessionId),
       );
 
-      print('[StockRepository] syncPendingRecords: PUT URL: $putUrl');
+      debugPrint('[StockRepository] syncPendingRecords: PUT URL: $putUrl');
 
       final putResponse = await http.put(
         putUrl,
         headers: headers,
         body: json.encode(payload),
-      ).timeout(const Duration(seconds: 10));
-
-      print('[StockRepository] syncPendingRecords: PUT Response status code: ${putResponse.statusCode}');
-      print('[StockRepository] syncPendingRecords: PUT Response body: ${putResponse.body}');
+      ).timeout(const Duration(seconds: 60));
 
       if (putResponse.statusCode == 200) {
-        // Mark all unsynced items as synced
         final syncedItems = items.map((item) {
           if (!item.isSynced) {
             return item.copyWith(isSynced: true);
@@ -499,7 +655,14 @@ class StockRepository {
           return item;
         }).toList();
 
-        await _saveToLocal(prefs, cacheKey, syncedItems);
+        final batch = db.batch();
+        batch.update(
+          'stock_items',
+          {'isSynced': 1},
+          where: 'user_uid = ? AND business_id = ? AND location_id = ? AND isSynced = 0',
+          whereArgs: [userUid, businessId, locationId],
+        );
+        await batch.commit(noResult: true);
         return syncedItems;
       } else {
         throw Exception('Server failed to finalize count session: ${putResponse.body}');
@@ -507,10 +670,5 @@ class StockRepository {
     } else {
       throw Exception('Server failed to create count session: ${postResponse.body}');
     }
-  }
-
-  Future<void> _saveToLocal(SharedPreferences prefs, String cacheKey, List<StockItem> items) async {
-    final data = items.map((e) => e.toJson()).toList();
-    await prefs.setStringList(cacheKey, data);
   }
 }

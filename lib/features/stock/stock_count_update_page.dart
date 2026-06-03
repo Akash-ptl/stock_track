@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/app_theme.dart';
 import '../auth/auth_bloc/auth_bloc.dart';
-import 'stock_bloc/stock_bloc.dart';
+import 'stock_bloc/tenant_bloc.dart';
+import 'stock_bloc/inventory_bloc.dart';
+import 'stock_bloc/sync_bloc.dart';
 import 'stock_model.dart';
 
 class StockCountUpdateArguments {
@@ -70,11 +73,11 @@ class _StockCountUpdatePageState extends State<StockCountUpdatePage> {
 
       // Default Counted By
       final authState = context.read<AuthBloc>().state;
-      String defaultUser = 'Akash Kalathiya';
+      String defaultUser = 'Mobile Operator';
       if (item.countedBy.isNotEmpty) {
         defaultUser = item.countedBy;
       } else if (authState is Authenticated) {
-        defaultUser = authState.user.displayName ?? 'Akash Kalathiya';
+        defaultUser = authState.user.displayName ?? 'Mobile Operator';
       }
       _countedByController.text = defaultUser;
 
@@ -172,9 +175,10 @@ class _StockCountUpdatePageState extends State<StockCountUpdatePage> {
     final pieces = double.tryParse(_piecesController.text) ?? 0.0;
     final notes = _notesController.text;
     final countedBy = _countedByController.text;
+    final tenantState = context.read<TenantBloc>().state;
 
     // Dispatch save event
-    context.read<StockBloc>().add(
+    context.read<InventoryBloc>().add(
       DetailedCountSaved(
         itemId: _args.item.id,
         cartons: cartons,
@@ -183,12 +187,24 @@ class _StockCountUpdatePageState extends State<StockCountUpdatePage> {
         countType: _countType,
         countDate: _formattedDate,
         countedBy: countedBy,
+        businessId: tenantState.selectedBusinessId,
+        locationId: tenantState.selectedLocationId,
       ),
     );
 
     if (andSync) {
       // Trigger sync
-      context.read<StockBloc>().add(const SyncRequested());
+      context.read<SyncBloc>().add(
+        SyncRequested(
+          businessId: tenantState.selectedBusinessId,
+          locationId: tenantState.selectedLocationId,
+          onSyncCompleted: (syncedItems) {
+            context.read<InventoryBloc>().add(
+                  LocalItemsUpdated(items: syncedItems),
+                );
+          },
+        ),
+      );
     }
 
     Navigator.of(context).pop();
@@ -511,6 +527,9 @@ class _StockCountUpdatePageState extends State<StockCountUpdatePage> {
                                       child: TextField(
                                         controller: _cartonsController,
                                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                                        ],
                                         textAlign: TextAlign.center,
                                         style: GoogleFonts.inter(
                                           fontSize: 14,
@@ -563,6 +582,9 @@ class _StockCountUpdatePageState extends State<StockCountUpdatePage> {
                                     child: TextField(
                                       controller: _piecesController,
                                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                                      ],
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
                                         fontSize: 14,
