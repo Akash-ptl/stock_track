@@ -114,10 +114,17 @@ class StockRepository {
       headers['Authorization'] = 'Bearer $token';
     }
 
+    print('[StockRepository] fetchBusinesses: Requesting URL: $url');
+    print('[StockRepository] fetchBusinesses: Headers: $headers');
+    print('[StockRepository] fetchBusinesses: Token length: ${token?.length ?? 0}');
+
     try {
       final response = await http.get(url, headers: headers).timeout(
         const Duration(seconds: 8),
       );
+
+      print('[StockRepository] fetchBusinesses: Response status code: ${response.statusCode}');
+      print('[StockRepository] fetchBusinesses: Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> body = json.decode(response.body);
@@ -132,8 +139,10 @@ class StockRepository {
         throw Exception('Server returned status code ${response.statusCode} for businesses: ${response.body}');
       }
     } catch (e) {
+      print('[StockRepository] fetchBusinesses: Error encountered: $e');
       final cachedBizJson = prefs.getString('cached_businesses_key');
       if (cachedBizJson != null) {
+        print('[StockRepository] fetchBusinesses: Fallback to cached businesses');
         final List<dynamic> decoded = json.decode(cachedBizJson);
         return decoded.map((biz) => {
           'id': biz['id'] as String,
@@ -157,10 +166,17 @@ class StockRepository {
       headers['Authorization'] = 'Bearer $token';
     }
 
+    print('[StockRepository] fetchLocations: Requesting URL: $url');
+    print('[StockRepository] fetchLocations: Headers: $headers');
+    print('[StockRepository] fetchLocations: Token length: ${token?.length ?? 0}');
+
     try {
       final response = await http.get(url, headers: headers).timeout(
         const Duration(seconds: 8),
       );
+
+      print('[StockRepository] fetchLocations: Response status code: ${response.statusCode}');
+      print('[StockRepository] fetchLocations: Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> body = json.decode(response.body);
@@ -175,8 +191,10 @@ class StockRepository {
         throw Exception('Server returned status code ${response.statusCode} for locations: ${response.body}');
       }
     } catch (e) {
+      print('[StockRepository] fetchLocations: Error encountered: $e');
       final cachedLocsJson = prefs.getString('cached_locations_${businessId}_key');
       if (cachedLocsJson != null) {
+        print('[StockRepository] fetchLocations: Fallback to cached locations');
         final List<dynamic> decoded = json.decode(cachedLocsJson);
         return decoded.map((loc) => {
           'id': loc['id'] as String,
@@ -215,22 +233,34 @@ class StockRepository {
       }
     }
 
+    if (_isDemo(businessId, locationId)) {
+      print('[StockRepository] fetchStockItems: Demo mode detected. Returning local mock items immediately.');
+      return itemsList;
+    }
+
+    final url = Uri.parse(
+      ApiConstants.stockItems(businessId, locationId),
+    );
+    
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+    };
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    print('[StockRepository] fetchStockItems: Requesting URL: $url');
+    print('[StockRepository] fetchStockItems: Headers: $headers');
+    print('[StockRepository] fetchStockItems: Token length: ${token?.length ?? 0}');
+
     // 2. Attempt to fetch from Backend API
     try {
-      final url = Uri.parse(
-        ApiConstants.stockItems(businessId, locationId),
-      );
-      
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-      };
-      if (token != null) {
-        headers['Authorization'] = 'Bearer $token';
-      }
-
       final response = await http.get(url, headers: headers).timeout(
         const Duration(seconds: 8),
       );
+
+      print('[StockRepository] fetchStockItems: Response status code: ${response.statusCode}');
+      print('[StockRepository] fetchStockItems: Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> body = json.decode(response.body);
@@ -268,8 +298,10 @@ class StockRepository {
         throw Exception('Server returned status code ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
+      print('[StockRepository] fetchStockItems: Error encountered: $e');
       // If we have cached data, fallback to it silently on any network or server error
       if (cachedData != null && cachedData.isNotEmpty) {
+        print('[StockRepository] fetchStockItems: Fallback to cached stock items');
         return itemsList;
       }
       rethrow;
@@ -368,7 +400,21 @@ class StockRepository {
     final items = cachedData.map((e) => StockItem.fromJson(e)).toList();
     final unsyncedItems = items.where((element) => !element.isSynced).toList();
 
+    if (_isDemo(businessId, locationId)) {
+      print('[StockRepository] syncPendingRecords: Demo mode detected. Mocking sync locally.');
+      final syncedItems = items.map((item) {
+        if (!item.isSynced) {
+          return item.copyWith(isSynced: true);
+        }
+        return item;
+      }).toList();
+
+      await _saveToLocal(prefs, cacheKey, syncedItems);
+      return syncedItems;
+    }
+
     if (unsyncedItems.isEmpty) {
+      print('[StockRepository] syncPendingRecords: No unsynced records found.');
       return items; // Nothing to sync
     }
 
@@ -410,12 +456,19 @@ class StockRepository {
       ApiConstants.stockCounts(businessId),
     );
 
+    print('[StockRepository] syncPendingRecords: POST URL: $postUrl');
+    print('[StockRepository] syncPendingRecords: Headers: $headers');
+    print('[StockRepository] syncPendingRecords: Payload: $payload');
+
     // 1. POST to create count session
     final postResponse = await http.post(
       postUrl,
       headers: headers,
       body: json.encode(payload),
     ).timeout(const Duration(seconds: 10));
+
+    print('[StockRepository] syncPendingRecords: POST Response status code: ${postResponse.statusCode}');
+    print('[StockRepository] syncPendingRecords: POST Response body: ${postResponse.body}');
 
     if (postResponse.statusCode == 200 || postResponse.statusCode == 201) {
       final sessionData = json.decode(postResponse.body);
@@ -426,11 +479,16 @@ class StockRepository {
         ApiConstants.finalizeCount(businessId, sessionId),
       );
 
+      print('[StockRepository] syncPendingRecords: PUT URL: $putUrl');
+
       final putResponse = await http.put(
         putUrl,
         headers: headers,
         body: json.encode(payload),
       ).timeout(const Duration(seconds: 10));
+
+      print('[StockRepository] syncPendingRecords: PUT Response status code: ${putResponse.statusCode}');
+      print('[StockRepository] syncPendingRecords: PUT Response body: ${putResponse.body}');
 
       if (putResponse.statusCode == 200) {
         // Mark all unsynced items as synced

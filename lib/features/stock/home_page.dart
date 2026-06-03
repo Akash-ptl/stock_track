@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -217,35 +218,100 @@ class _HomePageState extends State<HomePage> {
             }
             
             if (state is StockFailure) {
+              // Standard Error State
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        color: AppColors.error,
-                        size: 48,
+                  child: Card(
+                    elevation: 0,
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: const BorderSide(color: AppColors.borderGray),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.error_outline_rounded,
+                              color: AppColors.error,
+                              size: 48,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'An Error Occurred',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryNavy,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            state.errorMessage,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: AppColors.neutralGray,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryGreen,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(52),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () {
+                              context.read<StockBloc>().add(const LoadStockRequested());
+                            },
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: Text(
+                              'Try Again',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.neutralGray,
+                              side: const BorderSide(color: AppColors.borderGray),
+                              minimumSize: const Size.fromHeight(52),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () {
+                              context.read<AuthBloc>().add(SignOutRequested());
+                            },
+                            icon: const Icon(Icons.logout_rounded),
+                            label: Text(
+                              'Sign Out',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        state.errorMessage,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryNavy,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: () {
-                          context.read<StockBloc>().add(const LoadStockRequested());
-                        },
-                        child: const Text('Try Again'),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               );
@@ -309,59 +375,92 @@ class _HomePageState extends State<HomePage> {
                                               ),
                                               child: DropdownButtonHideUnderline(
                                                 child: DropdownButton<String>(
-                                                  value: state.selectedBusinessId,
-                                                  isDense: true,
-                                                  icon: const Icon(
-                                                    Icons.keyboard_arrow_down_rounded,
-                                                    color: AppColors.primaryNavy,
-                                                  ),
-                                                  dropdownColor: Colors.white,
-                                                  isExpanded: true,
-                                                  items: state.businesses.map((biz) {
-                                                    return DropdownMenuItem<String>(
-                                                      value: biz['id'],
-                                                      child: Row(
-                                                        children: [
-                                                          // Dynamic Business Letter Avatar
-                                                          Container(
-                                                            width: 26,
-                                                            height: 26,
-                                                            decoration: const BoxDecoration(
-                                                              color: AppColors.primaryNavy,
-                                                              shape: BoxShape.circle,
-                                                            ),
-                                                            alignment: Alignment.center,
-                                                            child: Text(
-                                                              (biz['name'] ?? 'B').isNotEmpty
-                                                                  ? (biz['name'] ?? 'B')[0].toUpperCase()
-                                                                  : 'B',
-                                                              style: GoogleFonts.inter(
-                                                                color: Colors.white,
-                                                                fontSize: 12,
-                                                                fontWeight: FontWeight.bold,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                          const SizedBox(width: 10),
-                                                          Text(
-                                                            biz['name'] ?? '',
-                                                            style: GoogleFonts.inter(
-                                                              fontSize: 14,
-                                                              fontWeight: FontWeight.w600,
-                                                              color: AppColors.primaryNavy,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  }).toList(),
-                                                  onChanged: state.isLoadingNewData
-                                                      ? null
-                                                      : (value) {
-                                                          if (value != null) {
-                                                            context.read<StockBloc>().add(BusinessChanged(businessId: value));
-                                                          }
-                                                        },
+                                                   value: state.selectedBusinessId,
+                                                   isDense: true,
+                                                   icon: const Icon(
+                                                     Icons.keyboard_arrow_down_rounded,
+                                                     color: AppColors.primaryNavy,
+                                                   ),
+                                                   dropdownColor: Colors.white,
+                                                   isExpanded: true,
+                                                   items: state.businesses.isEmpty
+                                                       ? [
+                                                           DropdownMenuItem<String>(
+                                                             value: '',
+                                                             child: Row(
+                                                               children: [
+                                                                 Container(
+                                                                   width: 26,
+                                                                   height: 26,
+                                                                   decoration: const BoxDecoration(
+                                                                     color: AppColors.primaryNavy,
+                                                                     shape: BoxShape.circle,
+                                                                   ),
+                                                                   alignment: Alignment.center,
+                                                                   child: const Icon(
+                                                                     Icons.storefront_outlined,
+                                                                     color: Colors.white,
+                                                                     size: 16,
+                                                                   ),
+                                                                 ),
+                                                                 const SizedBox(width: 10),
+                                                                 Text(
+                                                                   'No businesses configured',
+                                                                   style: GoogleFonts.inter(
+                                                                     fontSize: 14,
+                                                                     fontWeight: FontWeight.w600,
+                                                                     color: AppColors.primaryNavy,
+                                                                   ),
+                                                                 ),
+                                                               ],
+                                                             ),
+                                                           )
+                                                         ]
+                                                       : state.businesses.map((biz) {
+                                                           return DropdownMenuItem<String>(
+                                                             value: biz['id'],
+                                                             child: Row(
+                                                               children: [
+                                                                 // Dynamic Business Letter Avatar
+                                                                 Container(
+                                                                   width: 26,
+                                                                   height: 26,
+                                                                   decoration: const BoxDecoration(
+                                                                     color: AppColors.primaryNavy,
+                                                                     shape: BoxShape.circle,
+                                                                   ),
+                                                                   alignment: Alignment.center,
+                                                                   child: Text(
+                                                                     (biz['name'] ?? 'B').isNotEmpty
+                                                                         ? (biz['name'] ?? 'B')[0].toUpperCase()
+                                                                         : 'B',
+                                                                     style: GoogleFonts.inter(
+                                                                       color: Colors.white,
+                                                                       fontSize: 12,
+                                                                       fontWeight: FontWeight.bold,
+                                                                     ),
+                                                                   ),
+                                                                 ),
+                                                                 const SizedBox(width: 10),
+                                                                 Text(
+                                                                   biz['name'] ?? '',
+                                                                   style: GoogleFonts.inter(
+                                                                     fontSize: 14,
+                                                                     fontWeight: FontWeight.w600,
+                                                                     color: AppColors.primaryNavy,
+                                                                   ),
+                                                                 ),
+                                                               ],
+                                                             ),
+                                                           );
+                                                         }).toList(),
+                                                   onChanged: state.businesses.isEmpty || state.isLoadingNewData
+                                                       ? null
+                                                       : (value) {
+                                                           if (value != null) {
+                                                             context.read<StockBloc>().add(BusinessChanged(businessId: value));
+                                                           }
+                                                         },
                                                 ),
                                               ),
                                             ),
@@ -399,39 +498,72 @@ class _HomePageState extends State<HomePage> {
                                                   ),
                                                   dropdownColor: Colors.white,
                                                   isExpanded: true,
-                                                  items: state.locations.map((loc) {
-                                                    return DropdownMenuItem<String>(
-                                                      value: loc['id'],
-                                                      child: Row(
-                                                        children: [
-                                                          Container(
-                                                            width: 26,
-                                                            height: 26,
-                                                            decoration: BoxDecoration(
-                                                              color: AppColors.primaryGreen.withValues(alpha: 0.08),
-                                                              shape: BoxShape.circle,
+                                                  items: state.locations.isEmpty
+                                                      ? [
+                                                          DropdownMenuItem<String>(
+                                                            value: '',
+                                                            child: Row(
+                                                              children: [
+                                                                Container(
+                                                                  width: 26,
+                                                                  height: 26,
+                                                                  decoration: BoxDecoration(
+                                                                    color: AppColors.error.withValues(alpha: 0.08),
+                                                                    shape: BoxShape.circle,
+                                                                  ),
+                                                                  alignment: Alignment.center,
+                                                                  child: const Icon(
+                                                                    Icons.location_off_outlined,
+                                                                    color: AppColors.error,
+                                                                    size: 16,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(width: 10),
+                                                                Text(
+                                                                  'No locations configured',
+                                                                  style: GoogleFonts.inter(
+                                                                    fontSize: 14,
+                                                                    fontWeight: FontWeight.w600,
+                                                                    color: AppColors.error,
+                                                                  ),
+                                                                ),
+                                                              ],
                                                             ),
-                                                            alignment: Alignment.center,
-                                                            child: const Icon(
-                                                              Icons.location_on_outlined,
-                                                              color: AppColors.primaryGreen,
-                                                              size: 16,
+                                                          )
+                                                        ]
+                                                      : state.locations.map((loc) {
+                                                          return DropdownMenuItem<String>(
+                                                            value: loc['id'],
+                                                            child: Row(
+                                                              children: [
+                                                                Container(
+                                                                  width: 26,
+                                                                  height: 26,
+                                                                  decoration: BoxDecoration(
+                                                                    color: AppColors.primaryGreen.withValues(alpha: 0.08),
+                                                                    shape: BoxShape.circle,
+                                                                  ),
+                                                                  alignment: Alignment.center,
+                                                                  child: const Icon(
+                                                                    Icons.location_on_outlined,
+                                                                    color: AppColors.primaryGreen,
+                                                                    size: 16,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(width: 10),
+                                                                Text(
+                                                                  loc['name'] ?? '',
+                                                                  style: GoogleFonts.inter(
+                                                                    fontSize: 14,
+                                                                    fontWeight: FontWeight.w600,
+                                                                    color: AppColors.primaryNavy,
+                                                                  ),
+                                                                ),
+                                                              ],
                                                             ),
-                                                          ),
-                                                          const SizedBox(width: 10),
-                                                          Text(
-                                                            loc['name'] ?? '',
-                                                            style: GoogleFonts.inter(
-                                                              fontSize: 14,
-                                                              fontWeight: FontWeight.w600,
-                                                              color: AppColors.primaryNavy,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  }).toList(),
-                                                  onChanged: state.isLoadingNewData
+                                                          );
+                                                        }).toList(),
+                                                  onChanged: state.locations.isEmpty || state.isLoadingNewData
                                                       ? null
                                                       : (value) {
                                                           if (value != null) {

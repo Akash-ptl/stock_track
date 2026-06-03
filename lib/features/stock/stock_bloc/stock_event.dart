@@ -9,11 +9,12 @@ abstract class StockEvent extends Equatable {
 
 class LoadStockRequested extends StockEvent {
   final String? authToken;
+  final bool useDemo;
 
-  const LoadStockRequested({this.authToken});
+  const LoadStockRequested({this.authToken, this.useDemo = false});
 
   @override
-  List<Object?> get props => [authToken];
+  List<Object?> get props => [authToken, useDemo];
 }
 
 class QuantityChanged extends StockEvent {

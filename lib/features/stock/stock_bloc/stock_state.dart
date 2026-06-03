@@ -69,9 +69,10 @@ class StockLoaded extends StockState {
 
 class StockFailure extends StockState {
   final String errorMessage;
+  final bool isNoBusinessError;
 
-  const StockFailure(this.errorMessage);
+  const StockFailure(this.errorMessage, {this.isNoBusinessError = false});
 
   @override
-  List<Object?> get props => [errorMessage];
+  List<Object?> get props => [errorMessage, isNoBusinessError];
 }

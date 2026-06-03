@@ -25,31 +25,62 @@ class StockBloc extends Bloc<StockEvent, StockState> {
     Emitter<StockState> emit,
   ) async {
     final currentState = state;
+    final bool shouldUseDemo = event.useDemo || (currentState is StockLoaded && currentState.selectedBusinessId == 'biz_pizza_house');
+
     if (currentState is StockLoaded) {
       emit(currentState.copyWith(isLoadingNewData: true));
     } else {
       emit(StockLoading());
     }
     try {
+      if (shouldUseDemo) {
+        final businesses = [
+          {'id': 'biz_pizza_house', 'name': 'Demo Pizza House'}
+        ];
+        final defaultBusinessId = 'biz_pizza_house';
+        final locations = [
+          {'id': 'loc_main_wh', 'name': 'Main Warehouse (Demo)'}
+        ];
+        final defaultLocationId = 'loc_main_wh';
+        
+        final items = await _stockRepository.fetchStockItems(
+          businessId: defaultBusinessId,
+          locationId: defaultLocationId,
+          authToken: event.authToken,
+        );
+
+        emit(StockLoaded(
+          items: items,
+          businesses: businesses,
+          locations: locations,
+          selectedBusinessId: defaultBusinessId,
+          selectedLocationId: defaultLocationId,
+        ));
+        return;
+      }
+
       final businesses = await _stockRepository.fetchBusinesses(event.authToken);
       if (businesses.isEmpty) {
-        emit(const StockFailure('No businesses found. Please configure your business in the Web Admin dashboard.'));
+        emit(const StockLoaded(
+          items: [],
+          businesses: [],
+          locations: [],
+          selectedBusinessId: '',
+          selectedLocationId: '',
+        ));
         return;
       }
       
       final defaultBusinessId = businesses.first['id'] ?? '';
       final locations = await _stockRepository.fetchLocations(defaultBusinessId, event.authToken);
-      if (locations.isEmpty) {
-        emit(const StockFailure('No locations found for the selected business. Please configure your locations in the Web Admin dashboard.'));
-        return;
-      }
-
-      final defaultLocationId = locations.first['id'] ?? '';
-      final items = await _stockRepository.fetchStockItems(
-        businessId: defaultBusinessId,
-        locationId: defaultLocationId,
-        authToken: event.authToken,
-      );
+      final defaultLocationId = locations.isEmpty ? '' : (locations.first['id'] ?? '');
+      final items = locations.isEmpty
+          ? <StockItem>[]
+          : await _stockRepository.fetchStockItems(
+              businessId: defaultBusinessId,
+              locationId: defaultLocationId,
+              authToken: event.authToken,
+            );
 
       emit(StockLoaded(
         items: items,
@@ -115,17 +146,14 @@ class StockBloc extends Bloc<StockEvent, StockState> {
       emit(currentState.copyWith(isLoadingNewData: true));
       try {
         final locations = await _stockRepository.fetchLocations(event.businessId, event.authToken);
-        if (locations.isEmpty) {
-          emit(const StockFailure('No locations found for this business. Please configure your locations in the Web Admin dashboard.'));
-          return;
-        }
-        
-        final defaultLocationId = locations.first['id'] ?? '';
-        final items = await _stockRepository.fetchStockItems(
-          businessId: event.businessId,
-          locationId: defaultLocationId,
-          authToken: event.authToken,
-        );
+        final defaultLocationId = locations.isEmpty ? '' : (locations.first['id'] ?? '');
+        final items = locations.isEmpty
+            ? <StockItem>[]
+            : await _stockRepository.fetchStockItems(
+                businessId: event.businessId,
+                locationId: defaultLocationId,
+                authToken: event.authToken,
+              );
 
         emit(StockLoaded(
           items: items,
