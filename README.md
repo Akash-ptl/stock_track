@@ -9,6 +9,12 @@ A mobile stock counting app built with Flutter. Staff can log in, select their b
 > Go to **Releases** → download `app-release.apk` → install on your Android device.
 > (Enable "Install from unknown sources" if prompted)
 
+## Demo Video
+
+Watch the application walkthrough here:
+
+https://drive.google.com/file/d/1fXM2GxX1sG6Tyfo5LkZpYXLiiWScLq0u/view?usp=sharing
+
 ## Tech Stack
 
 | Layer | Technology |
