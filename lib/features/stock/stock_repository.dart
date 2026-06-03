@@ -1,10 +1,17 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/api_constants.dart';
 import 'stock_model.dart';
 
 class StockRepository {
-  
+  final FlutterSecureStorage _secureStorage;
+
+  StockRepository({
+    FlutterSecureStorage? secureStorage,
+  }) : _secureStorage = secureStorage ?? const FlutterSecureStorage();
+
   // High-fidelity mock items representing the screenshot products
   final List<StockItem> _mockItems = [
     StockItem(
@@ -97,9 +104,9 @@ class StockRepository {
   /// Fetch businesses for the user
   Future<List<Map<String, String>>> fetchBusinesses(String? authToken) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? token = authToken ?? prefs.getString('auth_token_key');
+    final String? token = authToken ?? await _secureStorage.read(key: 'auth_token_key');
 
-    final url = Uri.parse('https://stocktrack-mach.onrender.com/api/businesses');
+    final url = Uri.parse(ApiConstants.businesses);
     final headers = <String, String>{
       'Content-Type': 'application/json',
     };
@@ -140,9 +147,9 @@ class StockRepository {
   /// Fetch locations for a business
   Future<List<Map<String, String>>> fetchLocations(String businessId, String? authToken) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? token = authToken ?? prefs.getString('auth_token_key');
+    final String? token = authToken ?? await _secureStorage.read(key: 'auth_token_key');
 
-    final url = Uri.parse('https://stocktrack-mach.onrender.com/api/businesses/$businessId/locations');
+    final url = Uri.parse(ApiConstants.locations(businessId));
     final headers = <String, String>{
       'Content-Type': 'application/json',
     };
@@ -187,7 +194,7 @@ class StockRepository {
     String? authToken,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final String? token = authToken ?? prefs.getString('auth_token_key');
+    final String? token = authToken ?? await _secureStorage.read(key: 'auth_token_key');
     
     final String cacheKey = _getCacheKey(businessId, locationId);
 
@@ -211,7 +218,7 @@ class StockRepository {
     // 2. Attempt to fetch from Backend API
     try {
       final url = Uri.parse(
-        'https://stocktrack-mach.onrender.com/api/businesses/$businessId/locations/$locationId/stock-items',
+        ApiConstants.stockItems(businessId, locationId),
       );
       
       final headers = <String, String>{
@@ -261,15 +268,11 @@ class StockRepository {
         throw Exception('Server returned status code ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      // Rethrow explicit server exceptions or client errors
-      if (e.toString().contains('status code') || e is http.ClientException) {
-        rethrow;
+      // If we have cached data, fallback to it silently on any network or server error
+      if (cachedData != null && cachedData.isNotEmpty) {
+        return itemsList;
       }
-      // If we are offline and have no cached data, rethrow to show offline error
-      if (cachedData == null || cachedData.isEmpty) {
-        rethrow;
-      }
-      // Otherwise fallback to cached data silently
+      rethrow;
     }
 
     return itemsList;
@@ -356,7 +359,7 @@ class StockRepository {
     String? authToken,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final String? token = authToken ?? prefs.getString('auth_token_key');
+    final String? token = authToken ?? await _secureStorage.read(key: 'auth_token_key');
     
     final String cacheKey = _getCacheKey(businessId, locationId);
     final cachedData = prefs.getStringList(cacheKey);
@@ -404,7 +407,7 @@ class StockRepository {
     }
 
     final postUrl = Uri.parse(
-      'https://stocktrack-mach.onrender.com/api/businesses/$businessId/stock-counts',
+      ApiConstants.stockCounts(businessId),
     );
 
     // 1. POST to create count session
@@ -420,7 +423,7 @@ class StockRepository {
 
       // 2. PUT to finalize and commit the count session
       final putUrl = Uri.parse(
-        'https://stocktrack-mach.onrender.com/api/businesses/$businessId/stock-counts/$sessionId?status=completed',
+        ApiConstants.finalizeCount(businessId, sessionId),
       );
 
       final putResponse = await http.put(

@@ -7,12 +7,10 @@ import '../stock_model.dart';
 /// preventing cursor reset / focus loss on list view rebuilds.
 class StockItemRow extends StatefulWidget {
   final StockItem item;
-  final Function(double) onQuantityChanged;
 
   const StockItemRow({
     super.key,
     required this.item,
-    required this.onQuantityChanged,
   });
 
   @override

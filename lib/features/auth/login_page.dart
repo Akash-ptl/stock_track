@@ -162,7 +162,7 @@ class LoginPage extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Divider(
-                                color: AppColors.neutralGray.withOpacity(0.2),
+                                color: AppColors.neutralGray.withValues(alpha: 0.2),
                                 thickness: 1,
                               ),
                             ),
@@ -172,14 +172,14 @@ class LoginPage extends StatelessWidget {
                                 'OR',
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
-                                  color: AppColors.neutralGray.withOpacity(0.6),
+                                  color: AppColors.neutralGray.withValues(alpha: 0.6),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ),
                             Expanded(
                               child: Divider(
-                                color: AppColors.neutralGray.withOpacity(0.2),
+                                color: AppColors.neutralGray.withValues(alpha: 0.2),
                                 thickness: 1,
                               ),
                             ),
@@ -194,7 +194,7 @@ class LoginPage extends StatelessWidget {
                             color: const Color(0xFFF4FBF7), // Soft green-grey background
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: AppColors.lightGreen.withOpacity(0.6),
+                              color: AppColors.lightGreen.withValues(alpha: 0.6),
                             ),
                           ),
                           child: Row(
@@ -241,7 +241,7 @@ class LoginPage extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: AppColors.neutralGray.withOpacity(0.6),
+                            color: AppColors.neutralGray.withValues(alpha: 0.6),
                             fontWeight: FontWeight.w500,
                           ),
                         ),

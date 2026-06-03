@@ -1,0 +1,73 @@
+
+
+
+StockTrack – Paid Assessment Task
+
+Project Briefing:
+https://docs.google.com/document/d/1hFgMZT5emMvr8VQwjST_ySuFLjatkMIHPLOkIKZuPM0/edit?usp=sharing
+
+Web Admin URL:
+https://stock-track-hazel.vercel.app/
+
+Backend API Documentation:
+https://stocktrack-mach.onrender.com/redoc
+
+Task Objective:
+Build a small mobile prototype containing only the following screens:
+
+Login Screen
+
+Allow users to authenticate using Google Sign-In
+
+Persist login session locally
+
+Stock Count Screen
+
+Fetch stock items from API
+
+Display stock list
+
+Allow quantity input (cartons + units)
+
+Allow saving data locally when offline
+
+Add a manual sync button for sending pending records
+
+Requirements:
+
+Flutter or React Native
+
+Public GitHub repository
+
+Use clean architecture and explain your structure
+
+Commit code regularly (commit history will be reviewed)
+
+Share a 5–10 minute explanation video covering architecture decisions and AI tools used
+
+Share 2–3 example prompts used during development
+
+Time Limit:
+Maximum 2 hours of development time.
+
+Important Notes:
+
+Please do not spend more than 2 hours. This assessment is intended to evaluate problem-solving, architecture, AI workflow, and code quality — not who spends the most time.
+
+During our call, project requirements and assumptions will be explained.
+
+Working functionality is preferred over perfect UI.
+
+Assessment Criteria:
+
+Architecture & Code Structure
+
+AI Usage & Verification Process
+
+Communication & Explanation Quality
+
+Offline Handling Approach
+
+API Integration Quality
+
+GitHub Practices & Commit History

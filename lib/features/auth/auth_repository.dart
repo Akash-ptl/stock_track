@@ -3,17 +3,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../core/api_constants.dart';
 
 class AuthRepository {
   final FirebaseAuth _firebaseAuth;
   final GoogleSignIn _googleSignIn;
+  final FlutterSecureStorage _secureStorage;
 
   AuthRepository({
     FirebaseAuth? firebaseAuth,
     GoogleSignIn? googleSignIn,
+    FlutterSecureStorage? secureStorage,
   })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn();
+        _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
+        _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   /// Stream of user auth changes
   Stream<User?> get user => _firebaseAuth.authStateChanges();
@@ -21,7 +25,6 @@ class AuthRepository {
   /// Get current user
   User? get currentUser => _firebaseAuth.currentUser;
 
-  /// Sign in with Google
   Future<UserCredential> signInWithGoogle() async {
     // Force email selection prompt by signing out first
     try {
@@ -29,21 +32,21 @@ class AuthRepository {
     } catch (_) {}
 
     // Trigger the Google Authentication flow
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    
-    if (googleUser == null) {
+    final GoogleSignInAccount googleUser;
+    try {
+      googleUser = await _googleSignIn.authenticate();
+    } catch (e) {
       throw FirebaseAuthException(
         code: 'ERROR_ABORTED_BY_USER',
-        message: 'Sign in aborted by user',
+        message: 'Sign in aborted by user: $e',
       );
     }
 
     // Obtain the auth details from the request
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final GoogleSignInAuthentication googleAuth = googleUser.authentication;
 
     // Create a new credential
     final AuthCredential credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
 
@@ -61,8 +64,8 @@ class AuthRepository {
       throw Exception('Firebase user email is null. Cannot authenticate with backend.');
     }
 
-    final loginUrl = Uri.parse('https://stocktrack-mach.onrender.com/api/auth/login');
-    final registerUrl = Uri.parse('https://stocktrack-mach.onrender.com/api/auth/register');
+    final loginUrl = Uri.parse(ApiConstants.login);
+    final registerUrl = Uri.parse(ApiConstants.register);
 
     // 1. Try to login
     try {
@@ -128,21 +131,21 @@ class AuthRepository {
   }
 
   Future<void> _saveTokenToPrefs(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token_key', token);
+    await _secureStorage.write(key: 'auth_token_key', value: token);
   }
 
   Future<String?> getCachedToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_token_key');
+    return await _secureStorage.read(key: 'auth_token_key');
   }
 
   Future<void> clearAllCache() async {
+    await _secureStorage.delete(key: 'auth_token_key');
+    
+    // Clear shared preferences for non-credential caches
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
     for (final key in keys) {
-      if (key == 'auth_token_key' ||
-          key == 'cached_businesses_key' ||
+      if (key == 'cached_businesses_key' ||
           key.startsWith('cached_locations_') ||
           key.startsWith('stock_items_key_')) {
         await prefs.remove(key);

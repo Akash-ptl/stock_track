@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'core/app_theme.dart';
 import 'core/firebase_options.dart';
 import 'features/auth/auth_bloc/auth_bloc.dart';
@@ -19,6 +20,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize GoogleSignIn
+  await GoogleSignIn.instance.initialize();
 
   runApp(const MyApp());
 }

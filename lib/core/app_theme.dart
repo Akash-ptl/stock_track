@@ -31,7 +31,6 @@ class AppTheme {
         seedColor: AppColors.primaryGreen,
         primary: AppColors.primaryGreen,
         secondary: AppColors.primaryNavy,
-        background: AppColors.lightGray,
         surface: Colors.white,
         error: AppColors.error,
       ),
@@ -89,11 +88,11 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.neutralGray.withOpacity(0.3)),
+          borderSide: BorderSide(color: AppColors.neutralGray.withValues(alpha: 0.3)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.neutralGray.withOpacity(0.2)),
+          borderSide: BorderSide(color: AppColors.neutralGray.withValues(alpha: 0.2)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -105,7 +104,7 @@ class AppTheme {
         ),
         hintStyle: GoogleFonts.inter(
           fontSize: 14,
-          color: AppColors.neutralGray.withOpacity(0.6),
+          color: AppColors.neutralGray.withValues(alpha: 0.6),
         ),
         labelStyle: GoogleFonts.inter(
           fontSize: 14,
@@ -117,7 +116,7 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: AppColors.neutralGray.withOpacity(0.1)),
+          side: BorderSide(color: AppColors.neutralGray.withValues(alpha: 0.1)),
         ),
       ),
     );
@@ -134,7 +133,6 @@ class AppTheme {
       colorScheme: const ColorScheme.dark(
         primary: AppColors.primaryGreen,
         secondary: AppColors.lightGreen,
-        background: AppColors.primaryNavy,
         surface: Color(0xFF1E293B), // slate-800
         error: AppColors.error,
       ),
@@ -162,12 +160,12 @@ class AppTheme {
         bodyMedium: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.normal,
-          color: AppColors.lightGray.withOpacity(0.8),
+          color: AppColors.lightGray.withValues(alpha: 0.8),
         ),
         bodySmall: GoogleFonts.inter(
           fontSize: 12,
           fontWeight: FontWeight.normal,
-          color: AppColors.lightGray.withOpacity(0.6),
+          color: AppColors.lightGray.withValues(alpha: 0.6),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -192,11 +190,11 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.neutralGray.withOpacity(0.5)),
+          borderSide: BorderSide(color: AppColors.neutralGray.withValues(alpha: 0.5)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.neutralGray.withOpacity(0.3)),
+          borderSide: BorderSide(color: AppColors.neutralGray.withValues(alpha: 0.3)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -208,7 +206,7 @@ class AppTheme {
         ),
         hintStyle: GoogleFonts.inter(
           fontSize: 14,
-          color: AppColors.lightGray.withOpacity(0.5),
+          color: AppColors.lightGray.withValues(alpha: 0.5),
         ),
         labelStyle: GoogleFonts.inter(
           fontSize: 14,
@@ -220,7 +218,7 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withOpacity(0.1)),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
       ),
     );

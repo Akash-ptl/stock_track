@@ -57,7 +57,15 @@ class _StockCountUpdatePageState extends State<StockCountUpdatePage> {
       _args = ModalRoute.of(context)!.settings.arguments as StockCountUpdateArguments;
       final item = _args.item;
 
-      // Prefilled values removed as requested to start with empty inputs
+      // Unsynced local counts are prefilled to avoid data loss, while new counts start empty
+      if (!item.isSynced) {
+        _cartonsController.text = item.cartons > 0 ? (item.cartons % 1 == 0 ? item.cartons.toInt().toString() : item.cartons.toString()) : '';
+        _piecesController.text = item.pieces > 0 ? (item.pieces % 1 == 0 ? item.pieces.toInt().toString() : item.pieces.toString()) : '';
+      } else {
+        _cartonsController.text = '';
+        _piecesController.text = '';
+      }
+
       _notesController.text = item.notes;
 
       // Default Counted By
@@ -70,16 +78,27 @@ class _StockCountUpdatePageState extends State<StockCountUpdatePage> {
       }
       _countedByController.text = defaultUser;
 
-      // Date initialization
+      // Date initialization supporting both slash and dash separators
       if (item.countDate.isNotEmpty) {
         try {
-          final parts = item.countDate.split('/');
-          if (parts.length == 3) {
-            _selectedDate = DateTime(
-              int.parse(parts[2]),
-              int.parse(parts[1]),
-              int.parse(parts[0]),
-            );
+          if (item.countDate.contains('/')) {
+            final parts = item.countDate.split('/');
+            if (parts.length == 3) {
+              _selectedDate = DateTime(
+                int.parse(parts[2]),
+                int.parse(parts[1]),
+                int.parse(parts[0]),
+              );
+            }
+          } else if (item.countDate.contains('-')) {
+            final parts = item.countDate.split('-');
+            if (parts.length == 3) {
+              _selectedDate = DateTime(
+                int.parse(parts[0]),
+                int.parse(parts[1]),
+                int.parse(parts[2]),
+              );
+            }
           }
         } catch (_) {}
       }
@@ -118,7 +137,7 @@ class _StockCountUpdatePageState extends State<StockCountUpdatePage> {
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2025),
-      lastDate: DateTime(2030),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -650,7 +669,7 @@ class _StockCountUpdatePageState extends State<StockCountUpdatePage> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, -4),
                 ),

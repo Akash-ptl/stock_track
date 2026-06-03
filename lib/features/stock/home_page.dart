@@ -269,361 +269,363 @@ class _HomePageState extends State<HomePage> {
                         await Future.delayed(const Duration(seconds: 1));
                       },
                       color: AppColors.primaryGreen,
-                      child: SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const SizedBox(height: 12),
-                            
-                            // --- Business Selector dropdown ---
-                            Text(
-                              'Business',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.neutralGray,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.borderGray),
-                              ),
-                              child: Theme(
-                                data: Theme.of(context).copyWith(
-                                  canvasColor: Colors.white,
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: state.selectedBusinessId,
-                                    isDense: true,
-                                    icon: const Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      color: AppColors.primaryNavy,
-                                    ),
-                                    dropdownColor: Colors.white,
-                                    isExpanded: true,
-                                    items: state.businesses.map((biz) {
-                                      return DropdownMenuItem<String>(
-                                        value: biz['id'],
-                                        child: Row(
-                                          children: [
-                                             // Dynamic Business Letter Avatar
-                                             Container(
-                                               width: 26,
-                                               height: 26,
-                                               decoration: const BoxDecoration(
-                                                 color: AppColors.primaryNavy,
-                                                 shape: BoxShape.circle,
-                                               ),
-                                               alignment: Alignment.center,
-                                               child: Text(
-                                                 (biz['name'] ?? 'B').isNotEmpty
-                                                     ? (biz['name'] ?? 'B')[0].toUpperCase()
-                                                     : 'B',
-                                                 style: GoogleFonts.inter(
-                                                   color: Colors.white,
-                                                   fontSize: 12,
-                                                   fontWeight: FontWeight.bold,
-                                                 ),
-                                               ),
-                                             ),
-                                             const SizedBox(width: 10),
-                                            Text(
-                                              biz['name'] ?? '',
-                                              style: GoogleFonts.inter(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.primaryNavy,
+                      child: Stack(
+                        children: [
+                          Opacity(
+                            opacity: state.isLoadingNewData ? 0.45 : 1.0,
+                            child: AbsorbPointer(
+                              absorbing: state.isLoadingNewData,
+                              child: CustomScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                slivers: [
+                                  SliverPadding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                    sliver: SliverToBoxAdapter(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          const SizedBox(height: 12),
+                                          
+                                          // --- Business Selector dropdown ---
+                                          Text(
+                                            'Business',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.neutralGray,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: AppColors.borderGray),
+                                            ),
+                                            child: Theme(
+                                              data: Theme.of(context).copyWith(
+                                                canvasColor: Colors.white,
+                                              ),
+                                              child: DropdownButtonHideUnderline(
+                                                child: DropdownButton<String>(
+                                                  value: state.selectedBusinessId,
+                                                  isDense: true,
+                                                  icon: const Icon(
+                                                    Icons.keyboard_arrow_down_rounded,
+                                                    color: AppColors.primaryNavy,
+                                                  ),
+                                                  dropdownColor: Colors.white,
+                                                  isExpanded: true,
+                                                  items: state.businesses.map((biz) {
+                                                    return DropdownMenuItem<String>(
+                                                      value: biz['id'],
+                                                      child: Row(
+                                                        children: [
+                                                          // Dynamic Business Letter Avatar
+                                                          Container(
+                                                            width: 26,
+                                                            height: 26,
+                                                            decoration: const BoxDecoration(
+                                                              color: AppColors.primaryNavy,
+                                                              shape: BoxShape.circle,
+                                                            ),
+                                                            alignment: Alignment.center,
+                                                            child: Text(
+                                                              (biz['name'] ?? 'B').isNotEmpty
+                                                                  ? (biz['name'] ?? 'B')[0].toUpperCase()
+                                                                  : 'B',
+                                                              style: GoogleFonts.inter(
+                                                                color: Colors.white,
+                                                                fontSize: 12,
+                                                                fontWeight: FontWeight.bold,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 10),
+                                                          Text(
+                                                            biz['name'] ?? '',
+                                                            style: GoogleFonts.inter(
+                                                              fontSize: 14,
+                                                              fontWeight: FontWeight.w600,
+                                                              color: AppColors.primaryNavy,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  }).toList(),
+                                                  onChanged: state.isLoadingNewData
+                                                      ? null
+                                                      : (value) {
+                                                          if (value != null) {
+                                                            context.read<StockBloc>().add(BusinessChanged(businessId: value));
+                                                          }
+                                                        },
+                                                ),
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                    onChanged: state.isLoadingNewData
-                                        ? null
-                                        : (value) {
-                                            if (value != null) {
-                                              context.read<StockBloc>().add(BusinessChanged(businessId: value));
-                                            }
-                                          },
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            
-                            // --- Location Selector dropdown ---
-                            Text(
-                              'Location',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.neutralGray,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.borderGray),
-                              ),
-                              child: Theme(
-                                data: Theme.of(context).copyWith(
-                                  canvasColor: Colors.white,
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: state.selectedLocationId,
-                                    isDense: true,
-                                    icon: const Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      color: AppColors.primaryNavy,
-                                    ),
-                                    dropdownColor: Colors.white,
-                                    isExpanded: true,
-                                    items: state.locations.map((loc) {
-                                      return DropdownMenuItem<String>(
-                                        value: loc['id'],
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 26,
-                                              height: 26,
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primaryGreen.withOpacity(0.08),
-                                                shape: BoxShape.circle,
+                                          ),
+                                          const SizedBox(height: 10),
+                                          
+                                          // --- Location Selector dropdown ---
+                                          Text(
+                                            'Location',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.neutralGray,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: AppColors.borderGray),
+                                            ),
+                                            child: Theme(
+                                              data: Theme.of(context).copyWith(
+                                                canvasColor: Colors.white,
                                               ),
-                                              alignment: Alignment.center,
-                                              child: const Icon(
-                                                Icons.location_on_outlined,
-                                                color: AppColors.primaryGreen,
-                                                size: 16,
+                                              child: DropdownButtonHideUnderline(
+                                                child: DropdownButton<String>(
+                                                  value: state.selectedLocationId,
+                                                  isDense: true,
+                                                  icon: const Icon(
+                                                    Icons.keyboard_arrow_down_rounded,
+                                                    color: AppColors.primaryNavy,
+                                                  ),
+                                                  dropdownColor: Colors.white,
+                                                  isExpanded: true,
+                                                  items: state.locations.map((loc) {
+                                                    return DropdownMenuItem<String>(
+                                                      value: loc['id'],
+                                                      child: Row(
+                                                        children: [
+                                                          Container(
+                                                            width: 26,
+                                                            height: 26,
+                                                            decoration: BoxDecoration(
+                                                              color: AppColors.primaryGreen.withValues(alpha: 0.08),
+                                                              shape: BoxShape.circle,
+                                                            ),
+                                                            alignment: Alignment.center,
+                                                            child: const Icon(
+                                                              Icons.location_on_outlined,
+                                                              color: AppColors.primaryGreen,
+                                                              size: 16,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 10),
+                                                          Text(
+                                                            loc['name'] ?? '',
+                                                            style: GoogleFonts.inter(
+                                                              fontSize: 14,
+                                                              fontWeight: FontWeight.w600,
+                                                              color: AppColors.primaryNavy,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  }).toList(),
+                                                  onChanged: state.isLoadingNewData
+                                                      ? null
+                                                      : (value) {
+                                                          if (value != null) {
+                                                            context.read<StockBloc>().add(LocationChanged(locationId: value));
+                                                          }
+                                                        },
+                                                ),
                                               ),
                                             ),
-                                            const SizedBox(width: 10),
-                                            Text(
-                                              loc['name'] ?? '',
-                                              style: GoogleFonts.inter(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.primaryNavy,
+                                          ),
+                                          
+                                          const SizedBox(height: 12),
+                                          
+                                          // --- Items to Update Info Card ---
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF4FBF7), // Light Green-Grey matching mockup
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: AppColors.lightGreen.withValues(alpha: 0.6),
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                    onChanged: state.isLoadingNewData
-                                        ? null
-                                        : (value) {
-                                            if (value != null) {
-                                              context.read<StockBloc>().add(LocationChanged(locationId: value));
-                                            }
-                                          },
-                                  ),
-                                ),
-                              ),
-                            ),
-                            
-                            const SizedBox(height: 12),
-                            
-                            // --- Items to Update Info Card ---
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF4FBF7), // Light Green-Grey matching mockup
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: AppColors.lightGreen.withOpacity(0.6),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  // Clipboard Icon container
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: const BoxDecoration(
-                                      color: AppColors.primaryGreen, // Primary Green
-                                      shape: BoxShape.circle,
+                                            child: Row(
+                                              children: [
+                                                // Clipboard Icon container
+                                                Container(
+                                                  padding: const EdgeInsets.all(8),
+                                                  decoration: const BoxDecoration(
+                                                    color: AppColors.primaryGreen, // Primary Green
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.assignment_outlined,
+                                                    color: Colors.white,
+                                                    size: 18,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        'Items to Update',
+                                                        style: GoogleFonts.inter(
+                                                          fontSize: 13,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: AppColors.primaryNavy,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        'Enter the accurate quantity for each item.\nAll changes are saved automatically.',
+                                                        style: GoogleFonts.inter(
+                                                          fontSize: 11,
+                                                          color: AppColors.neutralGray,
+                                                          height: 1.25,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          
+                                          const SizedBox(height: 16),
+                                          
+                                          // --- List View Headers ---
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                'ITEM',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.neutralGray.withValues(alpha: 0.8),
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
+                                              Text(
+                                                'CURRENT QTY',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.neutralGray.withValues(alpha: 0.8),
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const Divider(height: 10, color: AppColors.borderGray),
+                                        ],
+                                      ),
                                     ),
-                                    child: const Icon(
-                                      Icons.assignment_outlined,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Items to Update',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.primaryNavy,
+                                  if (state.items.isEmpty)
+                                    SliverPadding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 40.0),
+                                      sliver: SliverToBoxAdapter(
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              const Icon(
+                                                Icons.inventory_2_outlined,
+                                                color: AppColors.neutralGray,
+                                                size: 40,
+                                              ),
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                'No stock items found',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.primaryNavy,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Configure stock items in the Web Admin dashboard.',
+                                                textAlign: TextAlign.center,
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 11,
+                                                  color: AppColors.neutralGray,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          'Enter the accurate quantity for each item.\nAll changes are saved automatically.',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 11,
-                                            color: AppColors.neutralGray,
-                                            height: 1.25,
-                                          ),
+                                      ),
+                                    )
+                                  else
+                                    SliverPadding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                      sliver: SliverList.separated(
+                                        itemCount: state.items.length,
+                                        separatorBuilder: (context, index) => const Divider(
+                                          height: 1,
+                                          color: AppColors.lightGray,
                                         ),
-                                      ],
+                                        itemBuilder: (context, index) {
+                                          final item = state.items[index];
+                                          return GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onTap: () {
+                                              final currentBiz = state.businesses.firstWhere(
+                                                (e) => e['id'] == state.selectedBusinessId,
+                                                orElse: () => {'name': 'Pizza House'},
+                                              );
+                                              final currentLoc = state.locations.firstWhere(
+                                                (e) => e['id'] == state.selectedLocationId,
+                                                orElse: () => {'name': 'Main Warehouse'},
+                                              );
+
+                                              Navigator.pushNamed(
+                                                context,
+                                                '/update-count',
+                                                arguments: StockCountUpdateArguments(
+                                                  item: item,
+                                                  businessName: currentBiz['name'] ?? 'Pizza House',
+                                                  locationName: currentLoc['name'] ?? 'Main Warehouse',
+                                                ),
+                                              );
+                                            },
+                                            child: StockItemRow(
+                                              key: ValueKey(item.id),
+                                              item: item,
+                                            ),
+                                          );
+                                        },
+                                      ),
                                     ),
+                                  const SliverToBoxAdapter(
+                                    child: SizedBox(height: 24),
                                   ),
                                 ],
                               ),
                             ),
-                            
-                            const SizedBox(height: 16),
-                            
-                            // --- List View Headers ---
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'ITEM',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.neutralGray.withOpacity(0.8),
-                                    letterSpacing: 0.5,
+                          ),
+                          if (state.isLoadingNewData)
+                            Positioned.fill(
+                              child: Container(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
                                   ),
                                 ),
-                                Text(
-                                  'CURRENT QTY',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.neutralGray.withOpacity(0.8),
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                            const Divider(height: 10, color: AppColors.borderGray),
-                            
-                            // --- Products List View ---
-                            Stack(
-                              children: [
-                                Opacity(
-                                  opacity: state.isLoadingNewData ? 0.45 : 1.0,
-                                  child: AbsorbPointer(
-                                    absorbing: state.isLoadingNewData,
-                                    child: state.items.isEmpty
-                                        ? Padding(
-                                            padding: const EdgeInsets.symmetric(vertical: 40.0),
-                                            child: Center(
-                                              child: Column(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  const Icon(
-                                                    Icons.inventory_2_outlined,
-                                                    color: AppColors.neutralGray,
-                                                    size: 40,
-                                                  ),
-                                                  const SizedBox(height: 12),
-                                                  Text(
-                                                    'No stock items found',
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 14,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: AppColors.primaryNavy,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    'Configure stock items in the Web Admin dashboard.',
-                                                    textAlign: TextAlign.center,
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 11,
-                                                      color: AppColors.neutralGray,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          )
-                                        : ListView.separated(
-                                            shrinkWrap: true,
-                                            physics: const NeverScrollableScrollPhysics(),
-                                            itemCount: state.items.length,
-                                            separatorBuilder: (context, index) => const Divider(
-                                              height: 1,
-                                              color: AppColors.lightGray,
-                                            ),
-                                            itemBuilder: (context, index) {
-                                              final item = state.items[index];
-                                              return GestureDetector(
-                                                behavior: HitTestBehavior.opaque,
-                                                onTap: () {
-                                                  final currentBiz = state.businesses.firstWhere(
-                                                    (e) => e['id'] == state.selectedBusinessId,
-                                                    orElse: () => {'name': 'Pizza House'},
-                                                  );
-                                                  final currentLoc = state.locations.firstWhere(
-                                                    (e) => e['id'] == state.selectedLocationId,
-                                                    orElse: () => {'name': 'Main Warehouse'},
-                                                  );
-
-                                                  Navigator.pushNamed(
-                                                    context,
-                                                    '/update-count',
-                                                    arguments: StockCountUpdateArguments(
-                                                      item: item,
-                                                      businessName: currentBiz['name'] ?? 'Pizza House',
-                                                      locationName: currentLoc['name'] ?? 'Main Warehouse',
-                                                    ),
-                                                  );
-                                                },
-                                                child: StockItemRow(
-                                                  key: ValueKey(item.id),
-                                                  item: item,
-                                                  onQuantityChanged: (newQty) {
-                                                    context.read<StockBloc>().add(
-                                                      QuantityChanged(
-                                                        itemId: item.id,
-                                                        quantity: newQty,
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                  ),
-                                ),
-                                if (state.isLoadingNewData)
-                                  Positioned.fill(
-                                    child: Container(
-                                      color: Colors.white.withOpacity(0.1),
-                                      child: const Center(
-                                        child: CircularProgressIndicator(
-                                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                        ),
+                        ],
                       ),
                     ),
                   ),
@@ -636,7 +638,7 @@ class _HomePageState extends State<HomePage> {
                       color: const Color(0xFFF4FBF7),
                       border: Border(
                         top: BorderSide(
-                          color: AppColors.lightGreen.withOpacity(0.6),
+                          color: AppColors.lightGreen.withValues(alpha: 0.6),
                           width: 1,
                         ),
                       ),

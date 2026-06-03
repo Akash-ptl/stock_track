@@ -28,7 +28,7 @@ class WavePainter extends CustomPainter {
 
     // Back Wave (Lighter opacity)
     final Paint paint1 = Paint()
-      ..color = const Color(0xFFDCFCE7).withOpacity(0.4)
+      ..color = const Color(0xFFDCFCE7).withValues(alpha: 0.4)
       ..style = PaintingStyle.fill;
 
     final Path path1 = Path()
@@ -46,7 +46,7 @@ class WavePainter extends CustomPainter {
 
     // Front Wave (Stronger opacity)
     final Paint paint2 = Paint()
-      ..color = const Color(0xFFDCFCE7).withOpacity(0.8)
+      ..color = const Color(0xFFDCFCE7).withValues(alpha: 0.8)
       ..style = PaintingStyle.fill;
 
     final Path path2 = Path()
