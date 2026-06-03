@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_better_auth/flutter_better_auth.dart';
+import 'package:http/http.dart' as http;
+import '../../core/api_constants.dart';
 import 'app_user.dart';
 
 class AuthRepository {
@@ -105,22 +108,94 @@ class AuthRepository {
     await _secureStorage.write(key: 'user_email', value: user.email);
     await _secureStorage.write(key: 'user_uid', value: user.id);
     await _secureStorage.write(key: 'user_display_name', value: user.name);
-    await _secureStorage.write(key: 'auth_token_key', value: sessionToken);
-    print('[AuthRepository] signInWithGoogle: Authentication flow complete. Session Token cached.');
+    await _secureStorage.write(key: 'better_auth_session_token', value: sessionToken);
+    print('[AuthRepository] signInWithGoogle: Better Auth session cached locally.');
 
     return appUser;
   }
 
-  /// Authenticate with backend: return the cached Better Auth session token
+  /// Authenticate with backend: login or register if not exists on the FastAPI backend
   Future<String> authenticateWithBackend(AppUser user) async {
-    print('[AuthRepository] authenticateWithBackend: checking for cached session token...');
-    final cachedToken = await getCachedToken();
-    if (cachedToken != null) {
-      print('[AuthRepository] authenticateWithBackend: found active session token.');
-      return cachedToken;
+    final email = user.email;
+    final password = user.uid; // Better Auth user ID acts as the password
+    final name = user.displayName ?? '';
+
+    print('[AuthRepository] authenticateWithBackend: authenticating email: $email against FastAPI backend...');
+
+    final loginUrl = Uri.parse(ApiConstants.login);
+    final registerUrl = Uri.parse(ApiConstants.register);
+
+    try {
+      // 1. Try to login
+      final loginResponse = await http.post(
+        loginUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'email': email,
+          'password': password,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (loginResponse.statusCode == 200) {
+        final data = json.decode(loginResponse.body);
+        final token = data['access_token'] as String;
+        print('[AuthRepository] authenticateWithBackend: FastAPI login success. Saving token.');
+        await _saveTokenToPrefs(token);
+        return token;
+      } else if (loginResponse.statusCode == 404 || loginResponse.statusCode == 401) {
+        // User not registered or invalid credentials, let's register
+        print('[AuthRepository] authenticateWithBackend: user not found or invalid credentials on FastAPI. Registering...');
+        final registerResponse = await http.post(
+          registerUrl,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({
+            'email': email,
+            'password': password,
+            'name': name,
+          }),
+        ).timeout(const Duration(seconds: 10));
+
+        if (registerResponse.statusCode == 201 || registerResponse.statusCode == 200) {
+          // Login again after registration
+          print('[AuthRepository] authenticateWithBackend: FastAPI registration success. Logging in...');
+          final retryLoginResponse = await http.post(
+            loginUrl,
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'email': email,
+              'password': password,
+            }),
+          ).timeout(const Duration(seconds: 10));
+
+          if (retryLoginResponse.statusCode == 200) {
+            final data = json.decode(retryLoginResponse.body);
+            final token = data['access_token'] as String;
+            print('[AuthRepository] authenticateWithBackend: FastAPI login post-registration success. Saving token.');
+            await _saveTokenToPrefs(token);
+            return token;
+          } else {
+            throw Exception('Backend login failed after registration: ${retryLoginResponse.body}');
+          }
+        } else {
+          throw Exception('Backend registration failed: ${registerResponse.body}');
+        }
+      } else {
+        throw Exception('Backend login failed with status code ${loginResponse.statusCode}: ${loginResponse.body}');
+      }
+    } catch (e) {
+      print('[AuthRepository] authenticateWithBackend: Error during FastAPI backend auth: $e');
+      // Offline fallback: check if we already have a cached token
+      final cachedToken = await getCachedToken();
+      if (cachedToken != null) {
+        print('[AuthRepository] authenticateWithBackend: fallback to cached FastAPI token.');
+        return cachedToken;
+      }
+      rethrow;
     }
-    print('[AuthRepository] authenticateWithBackend: no active session token found!');
-    throw Exception('No active session token found');
+  }
+
+  Future<void> _saveTokenToPrefs(String token) async {
+    await _secureStorage.write(key: 'auth_token_key', value: token);
   }
 
   Future<String?> getCachedToken() async {
@@ -151,6 +226,7 @@ class AuthRepository {
     await _secureStorage.delete(key: 'user_email');
     await _secureStorage.delete(key: 'user_uid');
     await _secureStorage.delete(key: 'user_display_name');
+    await _secureStorage.delete(key: 'better_auth_session_token');
     _currentUser = null;
     try {
       print('[AuthRepository] signOut: sending Better Auth client signOut request...');
